@@ -66,10 +66,13 @@ class Model(nn.Module):
         self.quan =nn.Sequential(nn.Linear(1,16),nn.ReLU(),nn.Linear(16,1),nn.Sigmoid())
         self.block_size=block_size
         
-    def forward(self, x, eval=False, noise_idx=10):
+    def forward(self, x, eval=False, noise_idx=10, variable=True):
         coeff = torch.matmul(x,self.eig)
         
-        noise = self.quan(noise_idx.view(-1,1)).squeeze()*50+10
+        if variable:
+            noise = self.quan(noise_idx.view(-1,1)).squeeze()*50+10
+        else:
+            noise = noise_idx.view(-1)
         coeff_hat, likelihood = eb_forward(coeff.view(-1,self.block_size**2), self.eb, noise, self.means, self.scale, eval)
         coeff_hat = coeff_hat*noise.unsqueeze(-1)
         rec = torch.matmul(coeff_hat, self.eig.T)
@@ -121,15 +124,20 @@ def train(dataloader, model, optimizer, epoch, lambda_max=0.05, lambda_min=0.001
     for batch, (x) in progress_bar:
         noise_norm = []
         lambda_norm = []
-        for idx in range(x.shape[0]):
-            lmbda_norm = random.random()
-            lmbda_norm = (idx%x.shape[0])/x.shape[0]+lmbda_norm*(1/x.shape[0])
-            lmbda = np.exp(lmbda_norm*(np.log(lambda_max)-np.log(lambda_min))+np.log(lambda_min))
-            lambda_norm.append(lmbda)
-            noise_norm.append(lmbda_norm)
-        lambda_norm = torch.tensor(lambda_norm).float()
-        noise_norm = torch.tensor(noise_norm).int()
-        pred, rec, pred_noise,likelihoods = model(x,noise_idx=lambda_norm)
+        if epoch<200:
+            lambda_norm = torch.tensor([0.1]*x.shape[0]).float()
+            noise_norm = torch.tensor([1]*x.shape[0]).int()
+            pred, rec, pred_noise,likelihoods = model(x,noise_idx=noise_norm, variable=False)
+        else:
+            for idx in range(x.shape[0]):
+                lmbda_norm = random.random()
+                lmbda_norm = (idx%x.shape[0])/x.shape[0]+lmbda_norm*(1/x.shape[0])
+                lmbda = np.exp(lmbda_norm*(np.log(lambda_max)-np.log(lambda_min))+np.log(lambda_min))
+                lambda_norm.append(lmbda)
+                noise_norm.append(lmbda_norm)
+            lambda_norm = torch.tensor(lambda_norm).float()
+            noise_norm = torch.tensor(noise_norm).int()
+            pred, rec, pred_noise,likelihoods = model(x,noise_idx=lambda_norm)
         recon_loss = nn.functional.mse_loss(x.view(x.shape[0],-1),rec.view(x.shape[0],-1),reduction='none').mean(-1)
         bpp_loss = torch.log(likelihoods).sum(-1) / (-math.log(2) * x.shape[-1])
         loss = lambda_norm*recon_loss+ bpp_loss
@@ -160,7 +168,7 @@ parser.add_argument('-b', type=int, default=8)
 parser.add_argument('-lambda_max', type=float, default=0.5)
 parser.add_argument('-lambda_min', type=float, default=0.01)
 parser.add_argument('-exp_name', type=str, default='')
-parser.add_argument('-lr', type=float, default=1e-3)
+parser.add_argument('-lr', type=float, default=1e-2)
 args = parser.parse_args(sys.argv[1:])
 
 trained_eig = []
@@ -170,14 +178,13 @@ base_dir = f'work/chiahaok/univ_transform/{EXP_NAME}/'
 os.makedirs(base_dir, exist_ok=True)
 model= Model(args.b)
 model.train()
-# model.load_state_dict(torch.load(f'work/chiahaok/univ_transform/{args.load}/{rate}/checkpoint.pth.tar')['state_dict'], False)
 train_dataset = MyDataset_residual(block_size=args.b)
 test_dataset = MyDataset_residual(block_size=args.b, test=True)
 train_dataloader = DataLoader(train_dataset, batch_size=1024, shuffle=True)
 test_dataloader = DataLoader(test_dataset, batch_size=1024, shuffle=False)
-optim = torch.optim.Adam(model.parameters(),lr=args.lr,)
-sceduler = torch.optim.lr_scheduler.StepLR(optim, 20, 0.5)
-for epoch in tqdm.trange(200):
+optim = torch.optim.Adam(model.parameters(),lr=args.lr)
+sceduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=list(range(50,200,50))+list(range(200,400,20)), gamma=0.5)
+for epoch in tqdm.trange(400):
     train(train_dataloader, model, optim, epoch, args.lambda_max, args.lambda_min)
     sceduler.step()
     if epoch%50==49:

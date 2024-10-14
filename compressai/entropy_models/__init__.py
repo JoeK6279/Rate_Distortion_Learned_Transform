@@ -27,11 +27,10 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .entropy_models import EntropyBottleneck, EntropyModel, GaussianConditional, EntropyBottleneck_condQ
+from .entropy_models import EntropyBottleneck, EntropyModel, GaussianConditional
 
 __all__ = [
     "EntropyModel",
     "EntropyBottleneck",
-    "EntropyBottleneck_condQ",
     "GaussianConditional",
 ]
