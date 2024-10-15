@@ -11,7 +11,7 @@ pip install torch compressai mat73
 ## Example
 Set up the path to datasets and output models in the `train.py`.
 ```bash
-python train.py 
+python train.py
 ```
 
 ### Arguments
