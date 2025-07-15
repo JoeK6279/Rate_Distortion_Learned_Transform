@@ -23,6 +23,8 @@ python train.py
 
 `-exp_name`: name of the experiment (for file saving)
 
+## Datasets
+The dataset used can be downloaded [here](https://github.com/JoeK6279/Rate_Distortion_Learned_Transform/releases/download/1.0/Release.zip).
 
 ## Ackonwledgement
 We modified the implementaion of Gaussian entropy model from [CompressAI](https://github.com/InterDigitalInc/CompressAI); we thank the authors for releasing the code.
